@@ -55,8 +55,15 @@
   };
 
   const parseNum = (raw) => {
-    if (raw === null || raw === undefined || raw === '') return null;
-    const n = parseFloat(String(raw).replace(/[, %$]/g, ''));
+    if (raw === null || raw === undefined) return null;
+    const s = String(raw).trim();
+    // Explicit empties and null markers Google Sheets uses
+    if (s === '' || s === '-' || s === '—' || s === 'N/A' || s === '#N/A' || s === '#DIV/0!') return null;
+    // Strip everything except digits, decimal point, and minus sign.
+    // This handles S$, US$, €, £, %, commas, spaces, and any other currency prefix.
+    const cleaned = s.replace(/[^\d.\-]/g, '');
+    if (cleaned === '' || cleaned === '-' || cleaned === '.') return null;
+    const n = parseFloat(cleaned);
     return isNaN(n) ? null : n;
   };
 
