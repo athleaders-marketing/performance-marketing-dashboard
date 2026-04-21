@@ -136,6 +136,7 @@
       state.rows = normalizeRows(parsed.data);
       state.lastFetch = new Date();
       state.loading = false;
+      renderShell();   // rebuild DOM now that sections should replace the loader
       applyFilters();
       renderAll();
     } catch (e) {
@@ -340,8 +341,11 @@
       <header class="header">
         <div class="header-inner">
           <div class="brand">
-            <span class="brand-logo">Athleaders</span>
-            <span class="brand-sub">Performance Marketing · Live</span>
+            <img src="logo.png" alt="Athleaders" class="brand-logo-img" />
+            <div class="brand-text">
+              <span class="brand-name">Athleaders</span>
+              <span class="brand-sub">Performance Marketing · Live</span>
+            </div>
           </div>
           <div class="status-strip" id="status-strip">
             ${renderStatus()}
