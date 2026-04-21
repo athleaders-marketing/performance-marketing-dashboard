@@ -87,8 +87,32 @@ html, body {
 
 .brand {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 14px;
+}
+
+.brand-logo-img {
+  height: 40px;
+  width: auto;
+  display: block;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-left: 1px solid var(--line);
+  padding-left: 14px;
+}
+
+.brand-name {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 18px;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  font-style: italic;
+  line-height: 1;
 }
 
 .brand-logo {
@@ -101,7 +125,7 @@ html, body {
 }
 
 .brand-sub {
-  font-size: 11px;
+  font-size: 10px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink-mute);
