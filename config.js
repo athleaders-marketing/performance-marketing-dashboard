@@ -19,7 +19,7 @@ window.CONFIG = {
   //   3. Look at the URL bar, copy the number after "gid="
   //   4. Paste it below
   // If left as null, the dashboard will try to auto-discover it.
-  PERF_MARKETING_GID: null,
+  PERF_MARKETING_GID: '577055534',
 
   // -----------------------------------------------------------------
   // BENCHMARKS (extracted from your sheet's formulas)
