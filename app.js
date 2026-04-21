@@ -29,7 +29,11 @@
   };
 
   const sum = (arr, key) => arr.reduce((a, r) => a + (Number(r[key]) || 0), 0);
-  const safeDiv = (a, b) => (!b || b === 0) ? null : a / b;
+  const safeDiv = (a, b) => {
+    if (a === null || a === undefined || b === null || b === undefined || b === 0) return null;
+    const n = Number(a) / Number(b);
+    return isFinite(n) ? n : null;
+  };
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
   // Excel serial date to JS Date
@@ -153,41 +157,62 @@
     // Find the actual header row (one that contains "Date" in col A or similar)
     let headerIdx = 0;
     for (let i = 0; i < Math.min(5, raw.length); i++) {
-      const first = String(raw[i][0] || '').toLowerCase();
+      const first = String(raw[i][0] || '').toLowerCase().trim();
       if (first === 'date') { headerIdx = i; break; }
     }
     const headers = raw[headerIdx].map(h => String(h || '').trim());
     const dataRows = raw.slice(headerIdx + 1);
 
-    const idx = (name) => headers.findIndex(h => h.toLowerCase() === name.toLowerCase());
-    const I = {
-      date:         idx('Date'),
-      day:          idx('Day'),
-      wk:           idx('Wk#'),
-      country:      idx('Country'),
-      advertiser:   idx('Advertiser'),
-      channel:      idx('Channel'),
-      spendTarget:  idx('Spend Target (SGD)'),
-      spendActual:  idx('Spend Actual (SGD)'),
-      spendVar:     idx('Spend Variance %'),
-      impr:         idx('Impr.'),
-      clicks:       idx('Clicks'),
-      ctr:          idx('CTR'),
-      cpc:          idx('CPC (SGD)'),
-      leads:        idx('Leads'),
-      cplActual:    idx('CPL Actual (SGD)'),
-      cplBench:     idx('CPL vs Benchmark'),
-      newCust:      idx('New Cust.'),
-      convRate:     idx('Conv Rate'),
-      cacActual:    idx('CAC Actual (SGD)'),
-      cacBench:     idx('CAC vs Benchmark'),
-      revenue:      idx('Revenue Attributed'),
-      roas:         idx('ROAS'),
-      campaign:     idx('Campaign / Ad Set'),
-      notes:        idx('Notes'),
+    // Robust column lookup: accepts array of aliases, tries exact match first, then contains
+    const idx = (aliases) => {
+      const list = Array.isArray(aliases) ? aliases : [aliases];
+      for (const p of list) {
+        const i = headers.findIndex(h => h.toLowerCase() === p.toLowerCase());
+        if (i !== -1) return i;
+      }
+      // Fallback: startsWith match (safer than contains, won't match "Spend Target" for "Spend")
+      for (const p of list) {
+        const i = headers.findIndex(h => h.toLowerCase().startsWith(p.toLowerCase()));
+        if (i !== -1) return i;
+      }
+      return -1;
     };
 
+    const I = {
+      date:         idx(['Date']),
+      day:          idx(['Day']),
+      wk:           idx(['Wk#', 'Week', 'Wk']),
+      country:      idx(['Country']),
+      advertiser:   idx(['Advertiser']),
+      channel:      idx(['Channel']),
+      spendTarget:  idx(['Spend Target (SGD)', 'Spend Target', 'Target Spend']),
+      spendActual:  idx(['Spend Actual (SGD)', 'Spend Actual', 'Actual Spend', 'Spend']),
+      spendVar:     idx(['Spend Variance %', 'Spend Variance']),
+      impr:         idx(['Impr.', 'Impressions', 'Impr']),
+      clicks:       idx(['Clicks']),
+      ctr:          idx(['CTR']),
+      cpc:          idx(['CPC (SGD)', 'CPC']),
+      leads:        idx(['Leads']),
+      cplActual:    idx(['CPL Actual (SGD)', 'CPL Actual', 'CPL']),
+      cplBench:     idx(['CPL vs Benchmark']),
+      newCust:      idx(['New Cust.', 'New Customers', 'Customers', 'New Cust']),
+      convRate:     idx(['Conv Rate', 'Conversion Rate']),
+      cacActual:    idx(['CAC Actual (SGD)', 'CAC Actual', 'CAC']),
+      cacBench:     idx(['CAC vs Benchmark']),
+      revenue:      idx(['Revenue Attributed', 'Revenue']),
+      roas:         idx(['ROAS']),
+      campaign:     idx(['Campaign / Ad Set', 'Campaign']),
+      notes:        idx(['Notes']),
+    };
+
+    // Diagnostic: log column mapping so you can see what's wired to what
+    console.group('%cAthleaders Dashboard · column map', 'color:#0F3D2E;font-weight:500');
+    console.log('Headers detected in sheet:', headers);
+    console.table(Object.fromEntries(Object.entries(I).map(([k, i]) => [k, i === -1 ? 'NOT FOUND' : `col ${i} → "${headers[i]}"`])));
+    console.groupEnd();
+
     const out = [];
+    let sampleLogged = false;
     for (const r of dataRows) {
       const date = parseDate(r[I.date]);
       if (!date) continue;
@@ -203,6 +228,19 @@
       const leads = parseNum(r[I.leads]);
       const newCust = parseNum(r[I.newCust]);
       const revenue = parseNum(r[I.revenue]);
+
+      // Log a sample row so you can verify numbers are parsed correctly
+      if (!sampleLogged && (spendActual || leads || impr)) {
+        console.group('%cSample parsed row', 'color:#0F3D2E;font-weight:500');
+        console.log({
+          date: date.toISOString().slice(0,10),
+          country, advertiser, channel,
+          spendActual, spendTarget, impr, clicks, leads, newCust, revenue,
+          rawRow: r,
+        });
+        console.groupEnd();
+        sampleLogged = true;
+      }
 
       // Derive metrics so we don't depend on sheet formulas resolving in CSV
       const ctr = safeDiv(clicks, impr);
@@ -233,6 +271,14 @@
         notes: r[I.notes] || '',
       });
     }
+
+    // Summary diagnostic
+    const withSpend = out.filter(r => r.spendActual !== null && r.spendActual > 0).length;
+    const withLeads = out.filter(r => r.leads !== null && r.leads > 0).length;
+    const withCust = out.filter(r => r.newCust !== null && r.newCust > 0).length;
+    const withRev = out.filter(r => r.revenue !== null && r.revenue > 0).length;
+    console.log(`%cAthleaders · ${out.length} rows parsed · spend on ${withSpend}, leads on ${withLeads}, customers on ${withCust}, revenue on ${withRev}`, 'color:#0F3D2E');
+
     return out;
   }
 
@@ -341,7 +387,7 @@
       <header class="header">
         <div class="header-inner">
           <div class="brand">
-            <img src="logo.png" alt="Athleaders" class="brand-logo-img" />
+            <div class="brand-logo-img" aria-label="Athleaders"></div>
             <div class="brand-text">
               <span class="brand-name">Athleaders</span>
               <span class="brand-sub">Performance Marketing · Live</span>
